@@ -29,7 +29,7 @@ void extractedQuote(){
     string quote,word;
     while(cin>>word){
         quote=quote+word+" ";
-        if(cin.peek()=='/n'){
+        if(cin.peek()=='\n'){
             break;
         }
     }

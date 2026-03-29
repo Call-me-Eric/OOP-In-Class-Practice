@@ -25,11 +25,13 @@ int main()
         cout << "4:调用countWords.\n";
         cout << "键入exit终止程序\n";
         std::string op;
-        cin >> op;
+        cin >> op;cin.get();
         if(op == "1")
         {
             cout << "请输入需要提取整数的字符串\n";
             std::string str;
+            std::getline(cin, str);
+            std::cerr << "str = " << str << '\n';
             cout << "所求结果为:" << classExample(str) << '\n';
         }
         else if(op == "2")
@@ -62,7 +64,8 @@ int main()
         {
             cout << "输入了错误的指令，请重新输入\n";
         }
-        cout << "键入回车以继续\n";cin >> op;
+        cout << "键入回车以继续\n";
+        cin.get();cin.get();
     }
     return 0;
 }
