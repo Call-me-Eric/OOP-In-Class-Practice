@@ -6,9 +6,18 @@ using namespace std;
 
 int classExample(string str){
     int sum=0;
-    for(int i=0;i<str.size();i++){
+    int i=0;
+    while(i<str.size()){
         if(isdigit(str[i])){
-            sum+=str[i]-'0';
+            int num=0;
+            while(i<str.size()&&isdigit(str[i])){
+                num=num*10+(str[i]-'0');
+                i++;
+            }
+            sum+=num;
+        }
+        else{
+            i++;
         }
     }
     return sum;
@@ -20,6 +29,9 @@ void extractedQuote(){
     string quote,word;
     while(cin>>word){
         quote=quote+word+" ";
+        if(cin.peek()=='/n'){
+            break;
+        }
     }
     cout<<first_name<<" "<<last_name<<" said this: "<<quote<<endl;
 
