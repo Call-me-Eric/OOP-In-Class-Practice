@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "cmath": "cpp",
+        "scoped_allocator": "cpp",
+        "complex": "cpp"
+    }
+}

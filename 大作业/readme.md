@@ -1,3 +1,5 @@
+# readme
+
 ## info
 
 根据投票，我们选择了[作业2](/大作业/实验课+B+Tensor+and+ViT.pdf)作为大作业内容。
@@ -18,15 +20,27 @@ main.cpp 由 @? 完成
 
 ### tensor.h
 
-需要完成所有pdf中出现的接口
+需要完成所有pdf中出现的接口。
+我们做出如下约定：
+
+我们称 $A=[x_1,x_2,\dots,x_n]$ 表示A的形状（即A._shape），每一位的数字表示这一维的长度（即这一维的下标有多少个取值）。
+
+对于乘法 A.matmul(B);
+保证调用时 $A=[x_1,x_2,\dots,x_k(以下统称为X),In],B=[In,Out]$
+需要返回 $C=[X,Out]$，类似于矩阵乘法。
+
+对于加法 A.bias_add(B);
+保证调用时 $A=[X,Out], B=[1,Out]$
+需要返回 $C=[X,Out]$，并且将B这一“行”加到每一个A的对应“行”上。
+
 有待补充$\dots$
 
 ### model.h
 
 需要完成：
 
-1. Layer 抽象基类
-2. Linear 线性层类（用于完成“仿射变换”）
+1. Layer 抽象基类 done
+2. Linear 线性层类（用于完成“仿射变换”）done
 3. PatchEmbedding 类（用于将$28\times 28$的灰度图转换成32维向量）
 4. LayerNorm 类（用于做矩阵乘法和加法的线性变换）
 5. MultiHeadAttention 类（还没看）
@@ -37,3 +51,5 @@ main.cpp 由 @? 完成
 ### main.cpp
 
 需要完成 WeightLoader类，与助教确认前端的交互界面。
+
+需要统筹计划模型如何训练，以及套一层壳之类的。
