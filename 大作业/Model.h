@@ -55,8 +55,26 @@ public:
     Tensor<float> forward(const Tensor<float>& x)
     {
         size_t B = x.shape()[0];
-        //首先进行切分
-        Tensor<float> patches = x;
-        
+        // 将输入 [B, 28, 28] 重塑为 [B, 16, 49]
+
+        Tensor<float> patches = x.reshaped({B, NUM_PATCHES, PATCH_SIZE * PATCH_SIZE});
+        // 展平为 [B*16, 49] 以通过线性层
+        patches = patches.reshaped({B * NUM_PATCHES, PATCH_SIZE * PATCH_SIZE});
+        // 通过投影层得到 [B*16, 32]
+        Tensor<float> embedded = projection.forward(patches);
+        // 重塑回 [B, 16, 32]
+        embedded = embedded.reshaped({B, NUM_PATCHES, HIDDEN_DIM});
+        // 手动广播 CLS token 到 [B, 1, 32]
+        Tensor<float> cls_expanded({B, 1, HIDDEN_DIM});
+        for (size_t b = 0; b < B; ++b) {
+            for (size_t j = 0; j < HIDDEN_DIM; ++j) {
+                cls_expanded(b, 0, j) = cls_token(0, 0, j);
+            }
+        }
+        // 使用 concat 在维度 1 上拼接，得到 [B, 17, 32]
+        Tensor<float> with_cls = Tensor<float>::concat({embedded, cls_expanded}, 1);
+        // 添加位置嵌入
+        Tensor<float> output = with_cls + pos_embedding;
+        return output;
     }
 };
