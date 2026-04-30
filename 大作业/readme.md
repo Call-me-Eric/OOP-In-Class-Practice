@@ -40,6 +40,6 @@ main.cpp 由 @bianbiandaren 完成
 
 ### main.cpp
 
-需要完成 WeightLoader类，与助教确认前端的交互界面。
+需要完成 WeightLoader，与助教确认前端的交互界面。
 
 需要统筹计划模型如何训练，以及套一层壳之类的。
