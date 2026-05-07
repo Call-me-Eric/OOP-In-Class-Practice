@@ -113,3 +113,16 @@ class LayerNorm : public Layer
         return x.softmax(x.size() - 1);
     }
 };
+
+class MultiHeadAttention : public Layer
+{
+    private:
+    public:
+    Tensor<float> SelfAttention(const Tensor<float> &x, const Tensor<float> &Wq, const Tensor<float> &Wk,const Tensor<float> &Wv)
+    {
+    }
+    Tensor<float> forward(const Tensor<float> &x)
+    {
+    }
+    
+};

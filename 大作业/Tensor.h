@@ -376,5 +376,6 @@ public:
         *this = Tensor<T>({in_feature, out_feature});
         for(auto &i : _data)i = 0;
     }
+    std::vector<size_t> Tensor<T>::index_to_coordinates(size_t idx) const;
 };
 
