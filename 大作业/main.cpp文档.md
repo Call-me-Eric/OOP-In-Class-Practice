@@ -4,43 +4,45 @@
 
 `main.cpp` 是 Tiny Vision Transformer 推理系统的入口文件，负责：
 
-1. 从二进制文件中读取 MNIST 灰度图像
-2. 从权重目录中加载所有模型参数
-3. 构建并初始化完整的 VisionTransformer 模型
-4. 执行前向推理，输出手写数字的预测结果
+1. 从 `*.raw` 或 `*.png` 文件中读取 MNIST 灰度图像
+2. 对输入图像做标准化预处理
+3. 从权重目录加载模型参数
+4. 构建 `VisionTransformer`
+5. 执行前向推理，输出预测分类结果
 
 ---
 
 ## 命令行接口
 
 ```bash
-./程序名 <image_path> <weight_dir>
+./main <image_path> [weight_dir] [debug_flag]
 ```
 
 | 参数 | 说明 |
 |------|------|
-| `image_path` | MNIST 图像的二进制文件路径（28×28 灰度图，每像素 1 字节） |
-| `weight_dir` | 存放模型权重 `.wts` 文件的目录路径 |
+| `image_path` | 输入图像路径，支持 `*.raw` 或 `*.png` |
+| `weight_dir` | 权重目录，默认 `weights_finetuned_norm` |
+| `debug_flag` | 0/1，是否输出调试日志，默认 0 |
 
 ---
 
 ## 模型超参数
 
-以下参数在 `main` 函数中以常量形式硬编码，与实验规格严格对应：
+以下参数在 `main` 函数中以常量形式硬编码：
 
 | 参数 | 值 | 说明 |
 |------|----|------|
 | `INPUT_H / INPUT_W` | 28 | 输入图像尺寸 |
-| `PATCH_H / PATCH_W` | 7 | Patch 大小，产生 16 个 patch |
+| `PATCH_H / PATCH_W` | 7 | Patch 大小，生成 16 个 patch |
 | `HIDDEN_DIM` | 32 | Token 隐藏维度 |
-| `NUM_HEADS` | 2 | 多头注意力头数 |
+| `NUM_HEADS` | 4 | 多头注意力头数 |
 | `MLP_DIM` | 64 | 前馈网络隐藏维度 |
 | `NUM_LAYERS` | 2 | Transformer 编码器块数量 |
-| `NUM_CLASSES` | 10 | 分类类别数（0~9） |
+| `NUM_CLASSES` | 10 | 分类类别数 |
 
 ---
 
-## 函数说明
+## 功能函数说明
 
 ### `load_tensor`
 
@@ -48,36 +50,46 @@
 Tensor<float> load_tensor(const string& filepath);
 ```
 
-从 `.wts` 文本文件中读取张量数据。
+从 `.wts` 文本文件读取张量数据。
 
-**文件格式：**
+**文件格式要求**：
 
-- 第一行为形状注释，格式为 `# shape: R C`（2D）或 `# shape: N`（1D bias）
-- 后续行为空格分隔的浮点数
+- 第一行格式为 `# shape: R C` 或 `# shape: N`
+- 后续行为空格分隔的浮点数数据
 
-**处理逻辑：**
+**处理规则**：
 
-- 若解析到两个正整数 `R C`，则构造形状 `{R, C}` 的张量
-- 若只解析到一个正整数 `N`（1D bias 情形），则自动转为形状 `{1, N}`，与 `Linear` 层期望的 bias 形状一致
-- 若实际读取数据量与张量容量不符，输出警告但不中止，取二者最小值进行填充
+- `R C` 解析为形状 `{R, C}`
+- `N` 解析为 1D bias，自动转换为 `{1, N}`
+- 如果数据数量和张量容量不匹配，程序会输出警告，但仍会按最小值填充
 
-**异常：** 文件无法打开或 shape 行格式非法时抛出 `runtime_error`。
+**异常**：
+- 文件打开失败
+- shape 行格式非法
 
 ---
 
 ### `load_image`
 
-```cpp
-Tensor<float> load_image(const string& path);
-```
+`main.cpp` 中有两种图像读取方式：
 
-从二进制文件中读取 MNIST 28×28 灰度图像。
+- `load_image`：包含 PNG 转 RAW 的自动转换逻辑
+- `load_raw_image`：直接从 raw 文件读取像素数据
 
-- 输出张量形状：`{1, 28, 28}`
-- 每个像素值除以 255.0f，归一化到 `[0, 1]`
-- 按行优先顺序逐像素读取
+`load_image` 会在输入文件名为 `*.png` 时，调用 `convert_image.py` 产生临时 raw 文件；如果转换成功，则读取该 raw 文件，并在读取后删除临时文件。
 
-**异常：** 文件无法打开或像素读取失败时抛出 `runtime_error`。
+读取后的原始像素值会除以 255.0f，得到 `[0, 1]` 的浮点张量。
+
+---
+
+### 标准化预处理
+
+程序将读取的 raw 图像分别进行两类预处理：
+
+1. `img_std`：使用 MNIST 常用均值 `0.1307f` 和标准差 `0.3081f` 进行标准化
+2. `img_center`：直接减去 `0.5f`，得到中心化结果
+
+然后对两种预处理结果分别执行一次前向推理，最终根据 softmax 置信度选择更可靠的预测值。
 
 ---
 
@@ -88,95 +100,67 @@ TransformerBlock load_block(const string& wdir, int idx,
                             size_t hidden_dim, size_t num_heads, size_t mlp_dim);
 ```
 
-从权重目录中加载第 `idx` 个 Transformer 编码器块的全部参数。
+从权重目录中加载第 `idx` 个 Transformer 编码器块参数，并返回已初始化的 `TransformerBlock`。
 
-**加载的权重文件（以 `blocks.<idx>.` 为前缀）：**
+加载文件包括：
 
-| 文件后缀 | 对应参数 |
-|----------|----------|
-| `attn.q.weight.wts` / `attn.q.bias.wts` | Q 投影权重与偏置 |
-| `attn.k.weight.wts` / `attn.k.bias.wts` | K 投影权重与偏置 |
-| `attn.v.weight.wts` / `attn.v.bias.wts` | V 投影权重与偏置 |
-| `attn.o.weight.wts` / `attn.o.bias.wts` | 输出投影权重与偏置 |
-| `mlp.fc1.weight.wts` / `mlp.fc1.bias.wts` | MLP 第一层权重与偏置 |
-| `mlp.fc2.weight.wts` / `mlp.fc2.bias.wts` | MLP 第二层权重与偏置 |
-
----
-
-### `main`
-
-程序主入口，按以下顺序执行：
-
-1. **加载图像**：调用 `load_image` 读取输入图片
-2. **加载 PatchEmbedding 参数**：
-   - `patch.weight.wts`：Patch 线性投影权重，形状 `{49, 32}`
-   - `patch.bias.wts`：投影偏置，形状 `{1, 32}`
-   - `cls_token.wts`：CLS token，reshape 为 `{1, 1, 32}`
-   - `pos_embed.wts`：位置编码，reshape 为 `{1, 17, 32}`
-3. **构建模型**：依次构造 `Linear`、`PatchEmbedding`、`VisionTransformer`
-4. **注入 Transformer 块参数**：循环调用 `load_block` 加载 2 个编码器块
-5. **加载分类头参数**：
-   - `head.weight.wts`：形状 `{32, 10}`
-   - `head.bias.wts`：形状 `{1, 10}`
-6. **前向推理**：调用 `vit.forward(image)`，返回 logits 张量，形状 `{1, 10}`
-7. **输出结果**：取 `argmax() % 10` 作为预测数字，并打印所有 logits 值
+- `blocks.<idx>.attn.q.weight.wts`
+- `blocks.<idx>.attn.q.bias.wts`
+- `blocks.<idx>.attn.k.weight.wts`
+- `blocks.<idx>.attn.k.bias.wts`
+- `blocks.<idx>.attn.v.weight.wts`
+- `blocks.<idx>.attn.v.bias.wts`
+- `blocks.<idx>.attn.o.weight.wts`
+- `blocks.<idx>.attn.o.bias.wts`
+- `blocks.<idx>.mlp.fc1.weight.wts`
+- `blocks.<idx>.mlp.fc1.bias.wts`
+- `blocks.<idx>.mlp.fc2.weight.wts`
+- `blocks.<idx>.mlp.fc2.bias.wts`
+- `blocks.<idx>.norm1.gamma.wts`
+- `blocks.<idx>.norm1.beta.wts`
+- `blocks.<idx>.norm2.gamma.wts`
+- `blocks.<idx>.norm2.beta.wts`
 
 ---
 
-## 权重目录结构
+## main() 运行流程
 
-运行时 `weight_dir` 下应包含以下文件：
-
-```
-weight_dir/
-├── patch.weight.wts
-├── patch.bias.wts
-├── cls_token.wts
-├── pos_embed.wts
-├── blocks.0.attn.q.weight.wts
-├── blocks.0.attn.q.bias.wts
-├── blocks.0.attn.k.weight.wts
-├── blocks.0.attn.k.bias.wts
-├── blocks.0.attn.v.weight.wts
-├── blocks.0.attn.v.bias.wts
-├── blocks.0.attn.o.weight.wts
-├── blocks.0.attn.o.bias.wts
-├── blocks.0.mlp.fc1.weight.wts
-├── blocks.0.mlp.fc1.bias.wts
-├── blocks.0.mlp.fc2.weight.wts
-├── blocks.0.mlp.fc2.bias.wts
-├── blocks.1.attn.q.weight.wts
-├── ... （blocks.1 同上）
-├── head.weight.wts
-└── head.bias.wts
-```
+1. 解析命令行参数，默认权重目录 `weights_finetuned_norm`
+2. 加载原始 raw 图像到 `{1, 28, 28}` 张量
+3. 生成 `img_std` 与 `img_center` 两种预处理输入
+4. 读取 patch 投影权重和位置编码：
+   - `patch.weight.wts`
+   - `patch.bias.wts`
+   - `cls_token.wts`
+   - `pos_embed.wts`
+5. 构建 `PatchEmbedding` 和 `VisionTransformer`
+6. 读取并设置 `NUM_LAYERS` 个 `TransformerBlock`
+7. 读取分类头权重 `head.weight.wts` 与 `head.bias.wts`
+8. 对 `img_std` 和 `img_center` 分别推理
+9. 依据 softmax 置信度选取最终预测结果
+10. 输出预测数字到标准输出
 
 ---
 
-## 输出示例
+## 权重文件要求
 
-```
-[INFO] Loading image...
-[INFO] Loading PatchEmbedding weights...
-[INFO] patch.weight.wts load successful
-[INFO] patch.bias.wts load successful
-[INFO] cls_token.wts load successful
-[INFO] cls_token reshaped to {1, 1, 32}successful
-[INFO] pos_embed.wts load successful
-[INFO] pos_embed begin to reshape to {1, 17, 32}successful
-[INFO] Building VisionTransformer...
-[INFO] Loading 2 Transformer blocks...
-[INFO] Loading classification head...
-[INFO] Running forward inference...
+- `patch.weight.wts`
+- `patch.bias.wts`
+- `cls_token.wts`
+- `pos_embed.wts`
+- `blocks.0.*.wts`
+- `blocks.1.*.wts`
+- `head.weight.wts`
+- `head.bias.wts`
 
-=============================================
-           MNIST Digit Recognition Result     
-=============================================
-Predicted digit: 7
-Raw logits:     -1.2  0.3  -0.8  ...  2.1  
-=============================================
-[INFO] Inference completed!
-```
+其中 `pos_embed.wts` 需要 reshape 为 `{1, 17, 32}`。
+
+---
+
+## 输出行为
+
+- 程序最终只会在 `stdout` 输出一个整数预测结果
+- `debug_flag=1` 时，会将详细推理日志输出到 `stderr`
 
 ---
 
@@ -187,17 +171,16 @@ Raw logits:     -1.2  0.3  -0.8  ...  2.1
 在传入 `vit_infer.exe` 之前，需先使用 `convert_image.py` 将 PNG 图像转换为程序可读的裸二进制格式：
 
 ```bash
-python convert_image.py
-# 按提示输入：
-# 请输入 PNG 文件路径: 大作业\1.png
-# 请输入输出 RAW 文件路径: 大作业\1.raw
+./main mnist_raw/test/test_0000_label_1.raw weights_finetuned_norm 1
 ```
 
-转换完成后再执行推理：
+若输入为 PNG：
 
 ```bash
-./vit_infer.exe 1.raw weights
+./main test_image.png weights_finetuned_norm 0
 ```
+
+程序会自动调用 `convert_image.py` 并生成临时 raw 文件。
 
 `convert_image.py` 的转换逻辑如下：
 
