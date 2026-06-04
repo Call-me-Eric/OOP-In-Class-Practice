@@ -291,41 +291,41 @@ int main(int argc, char* argv[])
         vit.set_head(head_w, head_b);
 
         // also compute center preprocess and use confidence-based selection
-        Tensor<float> img_center = raw;
-        for (size_t i = 0; i < img_center.size(); ++i) {
-            img_center[i] = img_center[i] - 0.5f;
-        }
+        // Tensor<float> img_center = raw;
+        // for (size_t i = 0; i < img_center.size(); ++i) {
+        //     img_center[i] = img_center[i] - 0.5f;
+        // }
 
         Tensor<float> logits_std = vit.forward(img_std.reshaped({1, 28, 28}));
-        Tensor<float> logits_ctr = vit.forward(img_center.reshaped({1, 28, 28}));
+        // Tensor<float> logits_ctr = vit.forward(img_center.reshaped({1, 28, 28}));
 
         int pred_std = static_cast<int>(logits_std.argmax() % 10);
-        int pred_ctr = static_cast<int>(logits_ctr.argmax() % 10);
+        // int pred_ctr = static_cast<int>(logits_ctr.argmax() % 10);
         int predict = pred_std;
-        if (pred_std == pred_ctr) {
-            predict = pred_std;
-        } else {
-            // compute softmax max confidence for each
-            Tensor<float> prob_std = logits_std.softmax(logits_std.rank() - 1);
-            Tensor<float> prob_ctr = logits_ctr.softmax(logits_ctr.rank() - 1);
-            float max_std = 0.0f, max_ctr = 0.0f;
-            // logits are shape {10} (flattened)
-            for (size_t i = 0; i < 10; ++i) {
-                if (prob_std[i] > max_std) max_std = prob_std[i];
-                if (prob_ctr[i] > max_ctr) max_ctr = prob_ctr[i];
-            }
-            if (max_ctr > max_std) predict = pred_ctr;
-            else predict = pred_std;
-        }
+        // if (pred_std == pred_ctr) {
+        //     predict = pred_std;
+        // } else {
+        //     // compute softmax max confidence for each
+        //     Tensor<float> prob_std = logits_std.softmax(logits_std.rank() - 1);
+        //     Tensor<float> prob_ctr = logits_ctr.softmax(logits_ctr.rank() - 1);
+        //     float max_std = 0.0f, max_ctr = 0.0f;
+        //     // logits are shape {10} (flattened)
+        //     for (size_t i = 0; i < 10; ++i) {
+        //         if (prob_std[i] > max_std) max_std = prob_std[i];
+        //         if (prob_ctr[i] > max_ctr) max_ctr = prob_ctr[i];
+        //     }
+        //     if (max_ctr > max_std) predict = pred_ctr;
+        //     else predict = pred_std;
+        // }
 
         if(debug)cerr << "\n=============================================" << endl;
         if(debug)cerr << "           MNIST Digit Recognition Result     " << endl;
         if(debug)cerr << "=============================================" << endl;
         if(debug)cerr << "Predicted digit: " << predict << endl;
         if(debug)cerr << "Raw logits:     ";
-        Tensor<float> logits_final = (predict == pred_std) ? logits_std : logits_ctr;
+        // Tensor<float> logits_final = (predict == pred_std) ? logits_std : logits_ctr;
         for (size_t i = 0; i < 10; ++i) {
-            if(debug)cerr << logits_final[i] << "  ";
+            if(debug)cerr << logits_std[i] << "  ";
         }
         if(debug)cerr << "\n=============================================" << endl;
         if(debug)cerr << "[INFO] Inference completed!" << endl;
